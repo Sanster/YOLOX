@@ -14,7 +14,7 @@ import torch
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
-from yolox.utils import fuse_model, get_model_info, postprocess, vis
+from yolox.utils import fuse_model, get_model_info, postprocess, vis, restore_pruning_result
 
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
@@ -277,6 +277,9 @@ def main(exp, args):
             ckpt_file = args.ckpt
         logger.info("loading checkpoint")
         ckpt = torch.load(ckpt_file, map_location="cpu")
+        if exp.run_network_slim:
+            model = restore_pruning_result(model, ckpt)
+            logger.info("Pruned Model Summary: {}".format(get_model_info(model, exp.test_size)))
         # load the model state dict
         model.load_state_dict(ckpt["model"])
         logger.info("loaded checkpoint done.")

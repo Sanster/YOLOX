@@ -20,7 +20,7 @@ class Exp(BaseExp):
         self.num_classes = 80
         self.depth = 1.00
         self.width = 1.00
-        self.act = 'silu'
+        self.act = "silu"
 
         # ---------------- dataloader config ---------------- #
         # set worker to 4 for shorter dataloader init time
@@ -64,6 +64,20 @@ class Exp(BaseExp):
         self.eval_interval = 10
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
+        # ----------------- network slimming  ------------------ #
+        # add L1 norm to bn weight
+        self.network_slim_sparsity_train_enable = False
+        self.network_slim_sparsity_train_s = 0.0001
+        # s = (0, s * current_epoch / self.network_slim_sparsity_train_warmup_epoch]
+        # set 0 to disable warmup
+        self.network_slim_sparsity_train_warmup_epoch = 300
+        # run_network_slim is used in train/test stage
+        # Train: apply network slimming before train; save pruning_result in checkpoint
+        # Test: restore pruning_result from checkpoint
+        self.run_network_slim = False
+        self.network_slim_schema = ""
+        self.network_slim_ratio = 0.65
+
         # -----------------  testing config ------------------ #
         self.test_size = (640, 640)
         self.test_conf = 0.01
@@ -80,8 +94,12 @@ class Exp(BaseExp):
 
         if getattr(self, "model", None) is None:
             in_channels = [256, 512, 1024]
-            backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
-            head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act)
+            backbone = YOLOPAFPN(
+                self.depth, self.width, in_channels=in_channels, act=self.act
+            )
+            head = YOLOXHead(
+                self.num_classes, self.width, in_channels=in_channels, act=self.act
+            )
             self.model = YOLOX(backbone, head)
 
         self.model.apply(init_yolo)
@@ -113,9 +131,8 @@ class Exp(BaseExp):
                 json_file=self.train_ann,
                 img_size=self.input_size,
                 preproc=TrainTransform(
-                    max_labels=50,
-                    flip_prob=self.flip_prob,
-                    hsv_prob=self.hsv_prob),
+                    max_labels=50, flip_prob=self.flip_prob, hsv_prob=self.hsv_prob
+                ),
                 cache=cache_img,
             )
 
@@ -124,9 +141,8 @@ class Exp(BaseExp):
             mosaic=not no_aug,
             img_size=self.input_size,
             preproc=TrainTransform(
-                max_labels=120,
-                flip_prob=self.flip_prob,
-                hsv_prob=self.hsv_prob),
+                max_labels=120, flip_prob=self.flip_prob, hsv_prob=self.hsv_prob
+            ),
             degrees=self.degrees,
             translate=self.translate,
             mosaic_scale=self.mosaic_scale,
@@ -167,7 +183,7 @@ class Exp(BaseExp):
 
         if rank == 0:
             size_factor = self.input_size[1] * 1.0 / self.input_size[0]
-            if not hasattr(self, 'random_size'):
+            if not hasattr(self, "random_size"):
                 min_size = int(self.input_size[0] / 32) - self.multiscale_range
                 max_size = int(self.input_size[0] / 32) + self.multiscale_range
                 self.random_size = (min_size, max_size)

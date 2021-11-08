@@ -8,8 +8,12 @@ import time
 from loguru import logger
 
 import torch
+from torch.nn import BatchNorm2d
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
+
+from pns import SlimPruner
+from pns.functional import update_bn_grad
 
 from yolox.data import DataPrefetcher
 from yolox.utils import (
@@ -26,7 +30,8 @@ from yolox.utils import (
     occupy_mem,
     save_checkpoint,
     setup_logger,
-    synchronize
+    synchronize,
+    restore_pruning_result,
 )
 
 
@@ -104,6 +109,16 @@ class Trainer:
 
         self.optimizer.zero_grad()
         self.scaler.scale(loss).backward()
+        if self.exp.network_slim_sparsity_train_enable:
+            # TODO: make fp16 work
+            s = self.exp.network_slim_sparsity_train_s * self.scaler.get_scale()
+            if self.exp.network_slim_sparsity_train_warmup_epoch != 0 and (
+                self.epoch < self.exp.network_slim_sparsity_train_warmup_epoch
+            ):
+                s *= (
+                    self.epoch + 1
+                ) / self.exp.network_slim_sparsity_train_warmup_epoch
+            update_bn_grad(self.model, s=s)
         self.scaler.step(self.optimizer)
         self.scaler.update()
 
@@ -134,11 +149,13 @@ class Trainer:
         )
         model.to(self.device)
 
-        # solver related init
-        self.optimizer = self.exp.get_optimizer(self.args.batch_size)
-
+        # need do network slimming first
+        # TODO: test resume
         # value of epoch will be set in `resume_train`
         model = self.resume_train(model)
+
+        # solver related init
+        self.optimizer = self.exp.get_optimizer(self.args.batch_size)
 
         # data related init
         self.no_aug = self.start_epoch >= self.max_epoch - self.exp.no_aug_epochs
@@ -181,7 +198,9 @@ class Trainer:
 
     def after_train(self):
         logger.info(
-            "Training of experiment is done and the best AP is {:.2f}".format(self.best_ap * 100)
+            "Training of experiment is done and the best AP is {:.2f}".format(
+                self.best_ap * 100
+            )
         )
 
     def before_epoch(self):
@@ -205,6 +224,15 @@ class Trainer:
         if (self.epoch + 1) % self.exp.eval_interval == 0:
             all_reduce_norm(self.model)
             self.evaluate_and_save_model()
+
+        if self.rank == 0 and self.exp.network_slim_sparsity_train_enable:
+            for name, m in self.model.named_modules():
+                if isinstance(m, BatchNorm2d):
+                    self.tblogger.add_histogram(
+                        f"BN_weights/{name}",
+                        m.weight.data.cpu().numpy(),
+                        self.epoch + 1,
+                    )
 
     def before_iter(self):
         pass
@@ -266,6 +294,10 @@ class Trainer:
                 ckpt_file = self.args.ckpt
 
             ckpt = torch.load(ckpt_file, map_location=self.device)
+            if self.exp.run_network_slim:
+                model = restore_pruning_result(model, ckpt)
+                self.pruning_result = ckpt["pruning_result"]
+
             # resume the model/optimizer state dict
             model.load_state_dict(ckpt["model"])
             self.optimizer.load_state_dict(ckpt["optimizer"])
@@ -287,6 +319,12 @@ class Trainer:
                 ckpt_file = self.args.ckpt
                 ckpt = torch.load(ckpt_file, map_location=self.device)["model"]
                 model = load_ckpt(model, ckpt)
+
+                if self.exp.run_network_slim:
+                    pruner = SlimPruner(model, self.exp.network_slim_schema)
+                    self.pruning_result = pruner.run(self.exp.network_slim_ratio)
+                    model = pruner.pruned_model
+
             self.start_epoch = 0
 
         return model
@@ -321,6 +359,11 @@ class Trainer:
                 "model": save_model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
             }
+
+            if self.exp.run_network_slim:
+                # save network-slimming pruning result to restore model arch from checkpoint
+                ckpt_state["pruning_result"] = self.pruning_result
+
             save_checkpoint(
                 ckpt_state,
                 update_best_ckpt,

@@ -7,12 +7,16 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 from thop import profile
+from loguru import logger
+
+from pns import SlimPruner
 
 __all__ = [
     "fuse_conv_and_bn",
     "fuse_model",
     "get_model_info",
     "replace_module",
+    "restore_pruning_result",
 ]
 
 
@@ -104,3 +108,14 @@ def replace_module(module, replaced_module_type, new_module_type, replace_func=N
                 model.add_module(name, new_child)
 
     return model
+
+
+def restore_pruning_result(model, ckpt):
+    pruner = SlimPruner(model)
+    if "pruning_result" not in ckpt:
+        raise ValueError(
+            "No pruning_result key find in checkpoint. Please run network slimming sparsity train first"
+        )
+    logger.info("Restoring pruning_result from checkpoint")
+    pruner.apply_pruning_result(ckpt["pruning_result"])
+    return pruner.pruned_model
