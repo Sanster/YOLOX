@@ -5,6 +5,8 @@
 import inspect
 import os
 import sys
+from pathlib import Path
+
 from loguru import logger
 
 
@@ -78,7 +80,10 @@ def setup_logger(save_dir, distributed_rank=0, filename="log.txt", mode="a"):
     )
 
     logger.remove()
+    if distributed_rank != 0:
+        filename = Path(filename).stem + f"_{distributed_rank}.txt"
     save_file = os.path.join(save_dir, filename)
+
     if mode == "o" and os.path.exists(save_file):
         os.remove(save_file)
     # only keep logger in rank0 process
@@ -89,7 +94,7 @@ def setup_logger(save_dir, distributed_rank=0, filename="log.txt", mode="a"):
             level="INFO",
             enqueue=True,
         )
-        logger.add(save_file)
+    logger.add(save_file)
 
     # redirect stdout/stderr to loguru
     redirect_sys_output("INFO")
