@@ -23,7 +23,7 @@ and the training hyper parameters and strategies are yet to be explored.
 |YOLOX-s(sparse-training) |640  | 37.9 | 9.0 | 26.8 | [github](https://github.com/Sanster/models/raw/master/YOLOX/yolox_s_slim_sparsity_train/latest_ckpt.pth) | max_epoch 120, linear warm up to `s=0.0001`|
 |YOLOX-s(slimming model) |640  |16.5  | 1.58  | 6.43 | [github](https://github.com/Sanster/models/raw/master/YOLOX/yolox_s_slim_fine_tuning/latest_ckpt.pth) [github-onnx](https://github.com/Sanster/models/raw/master/YOLOX/yolox_s_slim_fine_tuning/latest_ckpt.onnx)| network_slim_ratio=0.65, max_epoch=25 |
 |YOLOX-s(sparse-training) |640  | 33.8 | 9.0 | 26.8 | [github](https://github.com/Sanster/models/blob/master/YOLOX/yolox_s0.0002_warmup_10/latest_ckpt_s0.0002_warmup_10.pth) | max_epoch 80, linear warm up 10 epoch `s=0.0002`|
-|YOLOX-s(slimming model) |640  |26.74  |   |  | [github](https://github.com/Sanster/models/blob/master/YOLOX/yolox_s0.0002_warmup_10/latest_ckpt_s0.0002_warmup_10_fine_tuning_0.6.pth)| network_slim_ratio=0.6, max_epoch=80 |
+|YOLOX-s(slimming model) |640  |26.74  | 8.97 | 26.81 | [github](https://github.com/Sanster/models/blob/master/YOLOX/yolox_s0.0002_warmup_10/latest_ckpt_s0.0002_warmup_10_fine_tuning_0.6.pth)| network_slim_ratio=0.6, max_epoch=80 |
 |YOLOX-s(Official)    |640  |40.5 | 9.0 | 26.8 | [github](https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.pth) |
 |YOLOX-Tiny(Official) |416  |32.8 | 5.06 | 6.45 | [github](https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.pth) |
 
