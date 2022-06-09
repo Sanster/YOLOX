@@ -14,6 +14,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import cv2
 
 import torch
+from torch._C import MobileOptimizerType
+from torch.utils.mobile_optimizer import optimize_for_mobile
 
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
@@ -148,21 +150,22 @@ class Predictor(object):
         img, _ = self.preproc(img, None, self.test_size)
         img = torch.from_numpy(img).unsqueeze(0)
         img = img.float()
-        if self.device == "gpu":
-            img = img.cuda()
-            if self.fp16:
-                img = img.half()  # to FP16
+        # if self.device == "gpu":
+        #     img = img.cuda()
+        #     if self.fp16:
+        #         img = img.half()  # to FP16
 
-        with torch.no_grad():
-            t0 = time.time()
-            outputs = self.model(img)
-            if self.decoder is not None:
-                outputs = self.decoder(outputs, dtype=outputs.type())
-            outputs = postprocess(
-                outputs, self.num_classes, self.confthre, self.nmsthre, class_agnostic=True
-            )
-            logger.info("Infer time: {:.4f}s".format(time.time() - t0))
-        return outputs, img_info
+        # with torch.no_grad():
+        #     t0 = time.time()
+        #     outputs = self.model(img)
+        #     if self.decoder is not None:
+        #         outputs = self.decoder(outputs, dtype=outputs.type())
+        #     outputs = postprocess(
+        #         outputs, self.num_classes, self.confthre, self.nmsthre, class_agnostic=True
+        #     )
+        #     logger.info("Infer time: {:.4f}s".format(time.time() - t0))
+        # return outputs, img_info
+        return img
 
     def visual(self, output, img_info, cls_conf=0.35):
         ratio = img_info["ratio"]
@@ -201,6 +204,17 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
         ch = cv2.waitKey(0)
         if ch == 27 or ch == ord("q") or ch == ord("Q"):
             break
+
+
+def image_transform(predictor, path):
+    if os.path.isdir(path):
+        files = get_image_list(path)
+    else:
+        files = [path]
+    files.sort()
+    for image_name in files:
+        transformed_img = predictor.inference(image_name)
+    return transformed_img
 
 
 def imageflow_demo(predictor, vis_folder, current_time, args):
@@ -306,11 +320,29 @@ def main(exp, args):
         args.fp16,
         args.legacy,
     )
-    current_time = time.localtime()
-    if args.demo == "image":
-        image_demo(predictor, vis_folder, args.path, current_time, args.save_result)
-    elif args.demo == "video" or args.demo == "webcam":
-        imageflow_demo(predictor, vis_folder, current_time, args)
+    images = image_transform(predictor, args.path)
+    images = images.to("cpu")
+    print(images.shape)
+    with torch.no_grad():
+        model.eval()
+        # model = replace_module(model, nn.SiLU, SiLU)
+        # model.head.decode_in_inference = False
+        dummy_input = torch.rand(1, 3, 416, 416)
+        module = torch.jit.trace(model, images, strict=False)
+        optimization_blocklist = {
+            MobileOptimizerType.CONV_BN_FUSION,
+        }
+        optimized_module = optimize_for_mobile(module, optimization_blocklist)
+        print("normal", model(images))
+        print("traced", module(images))
+        print("opt", optimized_module(images))
+        print("Success optimize!!!")
+
+        spec = Path("live.spec.json").read_text()
+        extra_files = {}
+        extra_files["model/live.spec.json"] = spec
+        optimized_module._save_for_lite_interpreter("yolox_s.ptl", _extra_files=extra_files)
+        print("optimized_mode successfully exported.")
 
 
 if __name__ == "__main__":
