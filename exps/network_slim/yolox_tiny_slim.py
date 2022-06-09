@@ -36,8 +36,8 @@ class Exp(MyExp):
         self.test_conf = 0.4
         self.test_size = (416, 416)
 
-        self.run_network_slim = False
-        self.network_slim_schema = os.path.join(current_dir, "yolox_s_schema.json")
+        self.run_network_slim = True
+        self.network_slim_schema = os.path.join(current_dir, "yolox_tiny_schema.json")
         self.network_slim_ratio = 0.65
 
     def get_data_loader(self, batch_size, is_distributed, no_aug=False, cache_img=False):
