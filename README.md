@@ -54,7 +54,9 @@ network_slim_sparsity_train_s 0.0001
 ```
 
 Apply network slimming and fine-tuning pruned model
+    
 tinyの場合はnetwork_slim_ratio = 0.4あたりまで
+    
 network_slim_ratioは元のモデルのからどれぐらいslimにするか
 ```bash
 python3 tools/train.py -d 4 -b 64 \
