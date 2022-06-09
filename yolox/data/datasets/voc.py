@@ -36,9 +36,7 @@ class AnnotationTransform(object):
     """
 
     def __init__(self, class_to_ind=None, keep_difficult=True):
-        self.class_to_ind = class_to_ind or dict(
-            zip(VOC_CLASSES, range(len(VOC_CLASSES)))
-        )
+        self.class_to_ind = class_to_ind or dict(zip(VOC_CLASSES, range(len(VOC_CLASSES))))
         self.keep_difficult = keep_difficult
 
     def __call__(self, target):
@@ -64,7 +62,7 @@ class AnnotationTransform(object):
             pts = ["xmin", "ymin", "xmax", "ymax"]
             bndbox = []
             for i, pt in enumerate(pts):
-                cur_pt = int(bbox.find(pt).text) - 1
+                cur_pt = int(float(bbox.find(pt).text) - 1)
                 # scale height or width
                 # cur_pt = cur_pt / width if i % 2 == 0 else cur_pt / height
                 bndbox.append(cur_pt)
@@ -102,11 +100,11 @@ class VOCDetection(Dataset):
     def __init__(
         self,
         data_dir,
-        image_sets=[("2007", "trainval"), ("2012", "trainval")],
+        image_sets=[("2007", "trainval"), ("2007", "test")],
         img_size=(416, 416),
         preproc=None,
         target_transform=AnnotationTransform(),
-        dataset_name="VOC0712",
+        dataset_name="VOC2007",
         cache=False,
     ):
         super().__init__(img_size)
@@ -123,9 +121,7 @@ class VOCDetection(Dataset):
         for (year, name) in image_sets:
             self._year = year
             rootpath = os.path.join(self.root, "VOC" + year)
-            for line in open(
-                os.path.join(rootpath, "ImageSets", "Main", name + ".txt")
-            ):
+            for line in open(os.path.join(rootpath, "ImageSets", "Main", name + ".txt")):
                 self.ids.append((rootpath, line.strip()))
 
         self.annotations = self._load_coco_annotations()
@@ -263,9 +259,7 @@ class VOCDetection(Dataset):
         all_boxes[class][image] = [] or np.array of shape #dets x 5
         """
         self._write_voc_results_file(all_boxes)
-        IouTh = np.linspace(
-            0.5, 0.95, int(np.round((0.95 - 0.5) / 0.05)) + 1, endpoint=True
-        )
+        IouTh = np.linspace(0.5, 0.95, int(np.round((0.95 - 0.5) / 0.05)) + 1, endpoint=True)
         mAPs = []
         for iou in IouTh:
             mAP = self._do_python_eval(output_dir, iou)
@@ -315,9 +309,7 @@ class VOCDetection(Dataset):
         name = self.image_set[0][1]
         annopath = os.path.join(rootpath, "Annotations", "{:s}.xml")
         imagesetfile = os.path.join(rootpath, "ImageSets", "Main", name + ".txt")
-        cachedir = os.path.join(
-            self.root, "annotations_cache", "VOC" + self._year, name
-        )
+        cachedir = os.path.join(self.root, "annotations_cache", "VOC" + self._year, name)
         if not os.path.exists(cachedir):
             os.makedirs(cachedir)
         aps = []
